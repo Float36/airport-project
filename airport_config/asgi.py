@@ -1,5 +1,5 @@
 """
-ASGI config for airoport_config project.
+ASGI config for airport_config project.
 
 It exposes the ASGI callable as a module-level variable named ``application``.
 
@@ -11,6 +11,6 @@ import os
 
 from django.core.asgi import get_asgi_application
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'airoport_config.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'airport_config.settings')
 
 application = get_asgi_application()

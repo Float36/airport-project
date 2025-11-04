@@ -1,20 +1,31 @@
 from rest_framework import serializers
 from .models import Country, Airport, Airline, Airplane, Flight
 
+
+# --- Country ---
 class CountrySerializer(serializers.ModelSerializer):
     class Meta:
         model = Country
         fields = ('id', 'name')
 
+
+# --- Airport ---
 class AirportSerializer(serializers.ModelSerializer):
     # Show country name
-    country = serializers.StringRelatedField()
+    country = serializers.StringRelatedField(read_only=True)
 
     class Meta:
         model = Airport
         fields = ('id', 'name', 'iata_code', 'country')
 
 
+class AirportCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Airport
+        fields = ('id', 'name', 'iata_code', 'country')
+
+
+# --- Airline ---
 class AirlineSerializer(serializers.ModelSerializer):
     home_base = serializers.StringRelatedField()
 
@@ -24,9 +35,20 @@ class AirlineSerializer(serializers.ModelSerializer):
 
 
 class AirplaneSerializer(serializers.ModelSerializer):
+    """
+    Serializer for (GET) planes
+    """
     # Show airline name
-    airline = serializers.StringRelatedField()
+    airline = serializers.StringRelatedField(read_only=True)
 
+    class Meta:
+        model = Airplane
+        fields = ('id', 'model', 'capacity', 'airline')
+
+class AirplaneCreateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for (POST) planes
+    """
     class Meta:
         model = Airplane
         fields = ('id', 'model', 'capacity', 'airline')

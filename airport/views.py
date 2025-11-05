@@ -3,9 +3,14 @@ from rest_framework import viewsets
 from .models import Country, City, Airline, Airplane, Airport, Flight
 from .serializers import (
     CountrySerializer, CitySerializer, CityCreateSerializer,
-    AirportSerializer, AirportCreateSerializer, AirlineSerializer,
+
+    AirportDetailSerializer,
+    AirportListSerializer,
+    AirportCreateSerializer,
+
+    AirlineSerializer,
     AirplaneSerializer, AirplaneCreateSerializer, FlightSerializer,
-    FlightCreateSerializer
+    FlightCreateSerializer, AirlineCreateSerializer
 )
 
 
@@ -26,15 +31,23 @@ class AirportViewSet(viewsets.ModelViewSet):
     queryset = Airport.objects.select_related('city__country')
 
     def get_serializer_class(self):
-        if self.action in ['list', 'retrieve']:
-            return AirportSerializer
+        if self.action == 'list':
+            return AirportListSerializer
+
+        if self.action == 'retrieve':
+            return AirportDetailSerializer
+
         return AirportCreateSerializer
 
 
 
 class AirlineViewSet(viewsets.ModelViewSet):
     queryset = Airline.objects.all()
-    serializer_class = AirlineSerializer
+
+    def get_serializer_class(self):
+        if self.action in ['create']:
+            return AirlineCreateSerializer
+        return AirlineSerializer
 
 
 class AirplaneViewSet(viewsets.ModelViewSet):

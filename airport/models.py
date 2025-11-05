@@ -26,7 +26,7 @@ class City(models.Model):
     class Meta:
         unique_together = ('name', 'country')
         ordering = ["name"]
-        verbose_name_plural = ["cities"]
+        verbose_name_plural = "cities"
 
     def __str__(self):
         return f"{self.name} ({self.country})"

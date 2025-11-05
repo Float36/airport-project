@@ -32,7 +32,17 @@ class CityCreateSerializer(serializers.ModelSerializer):
 
 
 # --- Airport ---
-class AirportSerializer(serializers.ModelSerializer):
+class AirportListSerializer(serializers.ModelSerializer):
+    """
+    (GET) without iata_code
+    """
+    city = CitySerializer(read_only=True)
+
+    class Meta:
+        model = Airport
+        fields = ('id', 'name', 'city')
+
+class AirportDetailSerializer(serializers.ModelSerializer):
     # Show city object
     city = CitySerializer(read_only=True)
 
@@ -49,11 +59,23 @@ class AirportCreateSerializer(serializers.ModelSerializer):
 
 # --- Airline ---
 class AirlineSerializer(serializers.ModelSerializer):
-    home_base = serializers.StringRelatedField()
+    """
+    Serializer for (GET) airlines
+    """
+    home_base = AirportDetailSerializer(read_only=True)
 
     class Meta:
         model = Airline
         fields = ('id', 'name', 'home_base')
+
+
+class AirlineCreateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for (POST) airlines
+    """
+    class Meta:
+        model = Airline
+        fields = ('name', 'home_base')
 
 
 class AirplaneSerializer(serializers.ModelSerializer):
@@ -61,7 +83,7 @@ class AirplaneSerializer(serializers.ModelSerializer):
     Serializer for (GET) planes
     """
     # Show airline name
-    airline = serializers.StringRelatedField(read_only=True)
+    airline = AirlineSerializer(read_only=True)
 
     class Meta:
         model = Airplane
@@ -82,8 +104,8 @@ class FlightSerializer(serializers.ModelSerializer):
     """
     Serializer for GET all flights information
     """
-    departure_airport = AirportSerializer(read_only=True)
-    arrival_airport = AirportSerializer(read_only=True)
+    departure_airport = AirportDetailSerializer(read_only=True)
+    arrival_airport = AirportDetailSerializer(read_only=True)
     airplane = AirplaneSerializer(read_only=True)
     status = serializers.CharField(source='get_status_display') # Show "Scheduled" instead of "SCHEDULED"
 

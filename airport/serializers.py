@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Country, Airport, Airline, Airplane, Flight
+from .models import Country, City, Airport, Airline, Airplane, Flight
 
 
 # --- Country ---
@@ -9,20 +9,42 @@ class CountrySerializer(serializers.ModelSerializer):
         fields = ('id', 'name')
 
 
+class CitySerializer(serializers.ModelSerializer):
+    """
+    GET cities
+    """
+    country = CountrySerializer(read_only=True)
+
+    class Meta:
+        model = City
+        fields = ('id', 'name', 'country')
+
+
+class CityCreateSerializer(serializers.ModelSerializer):
+    """
+    POST/PUT cities
+    """
+    class Meta:
+        model = City
+        fields = ('name', 'country')
+
+
+
+
 # --- Airport ---
 class AirportSerializer(serializers.ModelSerializer):
-    # Show country name
-    country = serializers.StringRelatedField(read_only=True)
+    # Show city object
+    city = CitySerializer(read_only=True)
 
     class Meta:
         model = Airport
-        fields = ('id', 'name', 'iata_code', 'country')
+        fields = ('id', 'name', 'iata_code', 'city')
 
 
 class AirportCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Airport
-        fields = ('id', 'name', 'iata_code', 'country')
+        fields = ('name', 'iata_code', 'city')
 
 
 # --- Airline ---
@@ -51,7 +73,7 @@ class AirplaneCreateSerializer(serializers.ModelSerializer):
     """
     class Meta:
         model = Airplane
-        fields = ('id', 'model', 'capacity', 'airline')
+        fields = ('model', 'capacity', 'airline')
 
 
 
@@ -73,7 +95,7 @@ class FlightSerializer(serializers.ModelSerializer):
             'departure_airport',
             'arrival_airport',
             'departure_time',
-            'arriving_time',
+            'arrival_time',
             'airplane',
             'status'
         )
@@ -89,7 +111,7 @@ class FlightCreateSerializer(serializers.ModelSerializer):
             'departure_airport',
             'arrival_airport',
             'departure_time',
-            'arriving_time',
+            'arrival_time',
             'airplane',
             'status'
         )

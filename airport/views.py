@@ -1,9 +1,11 @@
 from django.shortcuts import render
 from rest_framework import viewsets
-from .models import Country, Airline, Airplane, Airport, Flight
+from .models import Country, City, Airline, Airplane, Airport, Flight
 from .serializers import (
-    CountrySerializer, AirportSerializer, AirportCreateSerializer, AirlineSerializer,
-    AirplaneSerializer, AirplaneCreateSerializer, FlightSerializer, FlightCreateSerializer
+    CountrySerializer, CitySerializer, CityCreateSerializer,
+    AirportSerializer, AirportCreateSerializer, AirlineSerializer,
+    AirplaneSerializer, AirplaneCreateSerializer, FlightSerializer,
+    FlightCreateSerializer
 )
 
 
@@ -12,8 +14,16 @@ class CountryViewSet(viewsets.ModelViewSet):
     serializer_class = CountrySerializer
 
 
+class CityViewSet(viewsets.ModelViewSet):
+    queryset = City.objects.select_related('country')
+
+    def get_serializer_class(self):
+        if self.action in ['list', 'retrieve']:
+            return CitySerializer
+        return CityCreateSerializer
+
 class AirportViewSet(viewsets.ModelViewSet):
-    queryset = Airport.objects.select_related('country')
+    queryset = Airport.objects.select_related('city__country')
 
     def get_serializer_class(self):
         if self.action in ['list', 'retrieve']:

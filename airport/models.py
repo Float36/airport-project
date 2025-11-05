@@ -20,7 +20,7 @@ class Airport(models.Model):
     Airports class
     """
     name = models.CharField(max_length=255)
-    # Unique code of city
+    # Unique code of airport
     iata_code = models.CharField(max_length=3, unique=True)
     country = models.ForeignKey(Country, on_delete=models.CASCADE, related_name="airports")
 

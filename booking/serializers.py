@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import Ticket, Order
-from airport.models import Flight
-from airport.serializers import FlightSerializer
+from airport.models import Flight, Seat
+from airport.serializers import FlightSerializer, SeatSerializer
 
 
 class TicketSerializer(serializers.ModelSerializer):
@@ -9,6 +9,7 @@ class TicketSerializer(serializers.ModelSerializer):
     Serializer for (GET) tickets
     """
     flight = FlightSerializer(read_only=True)
+    seat = SeatSerializer(read_only=True)
     status = serializers.CharField(source='get_status_display')
 
     class Meta:
@@ -23,6 +24,14 @@ class TicketCreateSerializer(serializers.ModelSerializer):
     """
     Serializer for (POST) tickets
     """
+    # 'seat' is waiting for ID
+    seat = serializers.PrimaryKeyRelatedField(
+        queryset=Seat.objects.all()
+    )
+
+    flight = serializers.PrimaryKeyRelatedField(
+        queryset=Flight.objects.all()
+    )
     class Meta:
         model = Ticket
         fields = (
@@ -37,16 +46,12 @@ class TicketCreateSerializer(serializers.ModelSerializer):
         flight = data['flight']
         seat = data['seat']
 
-        # Is a seat able for booking
-        if Ticket.objects.filter(flight=flight, seat=seat).exists():
+        # Check if the "drawing" of the seat matches the "drawing" of the plane
+        if seat.airplane_type != flight.airplane.airplane_type:
             raise serializers.ValidationError(
-                f"Seat {seat} is already booked for flight {flight.flight_number}"
-            )
-
-        # Seat exist on plane
-        if seat > flight.airplane.capacity:
-            raise serializers.ValidationError(
-                f"Seat {seat} doesn't exist on this plane (capacity: {flight.airplane.capacity}"
+                f"Seat {seat} ({seat.airplane_type.name}) "
+                f"is not valid for this flight's airplane "
+                f"({flight.airplane.airplane_type.name})."
             )
 
         return data
@@ -85,7 +90,7 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         # Check for duplicate seats in one order
         seats_on_flight = set()
         for ticket_data in tickets_data:
-            flight_seat = (ticket_data['flight'].id, ticket_data['seat'])
+            flight_seat = (ticket_data['flight'].id, ticket_data['seat'].id)
             if flight_seat in seats_on_flight:
                 raise serializers.ValidationError(
                     f"Duplicate ticket for seat {ticket_data['seat']} "
@@ -97,9 +102,9 @@ class OrderCreateSerializer(serializers.ModelSerializer):
         return tickets_data
 
     # We override .create() to handle nested tickets.
-    def create(self, validate_data):
-        tickets_data = validate_data.pop('tickets')
-        order = Order.objects.create(**validate_data)
+    def create(self, validated_data):
+        tickets_data = validated_data.pop('tickets')
+        order = Order.objects.create(**validated_data)
 
         for ticket_data in tickets_data:
             Ticket.objects.create(order=order, **ticket_data)

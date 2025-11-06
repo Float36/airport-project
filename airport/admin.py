@@ -39,7 +39,7 @@ class AirlineAdmin(admin.ModelAdmin):
 
 @admin.register(Airplane)
 class AirplaneAdmin(admin.ModelAdmin):
-    list_display = ("model", "capacity", "airline")
+    list_display = ("model", "airline")
     search_fields = ("model",)
     list_filter = ("airline",)
     autocomplete_fields = ("airline",)

@@ -27,7 +27,12 @@ class OrderViewSet(
         - Admin sees ALL orders.
         """
         user = self.request.user
-        base_queryset = Order.objects.prefetch_related('tickets__flight__airplane')
+        base_queryset = Order.objects.prefetch_related(
+            'tickets__seat',
+            'tickets__flight__departure_airport',
+            'tickets__flight__arrival_airport',
+            'tickets__flight__airplane__airplane_type'
+        )
 
         if user.is_staff or (hasattr(user, 'role') and user.role == 'ADMIN'):
             return base_queryset.all()
@@ -63,8 +68,10 @@ class TicketViewSet(
     """
     queryset = Ticket.objects.select_related(
         'order__user',
+        'seat',
         'flight__departure_airport',
-        'flight__arrival_airport'
+        'flight__arrival_airport',
+        'flight__airplane__airplane_type'
     )
     serializer_class = TicketSerializer
     permission_classes = [IsAdminUser]

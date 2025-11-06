@@ -15,6 +15,24 @@ class Country(models.Model):
         return self.name
 
 
+class City(models.Model):
+    name = models.CharField(max_length=100)
+    country = models.ForeignKey(
+        Country,
+        on_delete=models.CASCADE,
+        related_name="cities"
+    )
+
+    class Meta:
+        unique_together = ('name', 'country')
+        ordering = ["name"]
+        verbose_name_plural = "cities"
+
+    def __str__(self):
+        return f"{self.name} ({self.country})"
+
+
+
 class Airport(models.Model):
     """
     Airports class
@@ -22,11 +40,14 @@ class Airport(models.Model):
     name = models.CharField(max_length=255)
     # Unique code of airport
     iata_code = models.CharField(max_length=3, unique=True)
-    country = models.ForeignKey(Country, on_delete=models.CASCADE, related_name="airports")
+    city = models.ForeignKey(
+        City,
+        on_delete=models.CASCADE,
+        related_name="airports"
+    )
 
     def __str__(self):
-        return f"{self.name} ({self.iata_code}) - {self.country.name}"
-
+        return f"{self.name} ({self.iata_code}) - {self.city.name}, {self.city.country.name}"
 
 class Airline(models.Model):
     """
@@ -36,7 +57,7 @@ class Airline(models.Model):
     # FK on airport, 1 airport can have alot airlines
     home_base = models.ForeignKey(
         Airport,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="airlines"
@@ -78,7 +99,7 @@ class Flight(models.Model):
         related_name="arriving_flights"
     )
     departure_time = models.DateTimeField()
-    arriving_time = models.DateTimeField()
+    arrival_time = models.DateTimeField()
     airplane = models.ForeignKey(
         Airplane,
         on_delete=models.CASCADE,

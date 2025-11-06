@@ -1,9 +1,16 @@
 from django.shortcuts import render
 from rest_framework import viewsets
-from .models import Country, Airline, Airplane, Airport, Flight
+from .models import Country, City, Airline, Airplane, Airport, Flight
 from .serializers import (
-    CountrySerializer, AirportSerializer, AirportCreateSerializer, AirlineSerializer,
-    AirplaneSerializer, AirplaneCreateSerializer, FlightSerializer, FlightCreateSerializer
+    CountrySerializer, CitySerializer, CityCreateSerializer,
+
+    AirportDetailSerializer,
+    AirportListSerializer,
+    AirportCreateSerializer,
+
+    AirlineSerializer,
+    AirplaneSerializer, AirplaneCreateSerializer, FlightSerializer,
+    FlightCreateSerializer, AirlineCreateSerializer
 )
 
 
@@ -12,19 +19,35 @@ class CountryViewSet(viewsets.ModelViewSet):
     serializer_class = CountrySerializer
 
 
-class AirportViewSet(viewsets.ModelViewSet):
-    queryset = Airport.objects.select_related('country')
+class CityViewSet(viewsets.ModelViewSet):
+    queryset = City.objects.select_related('country')
 
     def get_serializer_class(self):
         if self.action in ['list', 'retrieve']:
-            return AirportSerializer
+            return CitySerializer
+        return CityCreateSerializer
+
+class AirportViewSet(viewsets.ModelViewSet):
+    queryset = Airport.objects.select_related('city__country')
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return AirportListSerializer
+
+        if self.action == 'retrieve':
+            return AirportDetailSerializer
+
         return AirportCreateSerializer
 
 
 
 class AirlineViewSet(viewsets.ModelViewSet):
     queryset = Airline.objects.all()
-    serializer_class = AirlineSerializer
+
+    def get_serializer_class(self):
+        if self.action in ['create']:
+            return AirlineCreateSerializer
+        return AirlineSerializer
 
 
 class AirplaneViewSet(viewsets.ModelViewSet):

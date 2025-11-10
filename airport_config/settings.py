@@ -14,7 +14,23 @@ load_dotenv(os.path.join(BASE_DIR, '.env'))
 SECRET_KEY = os.getenv('SECRET_KEY')
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = []
+STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY')
+STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
+
+CSRF_TRUSTED_ORIGINS = [
+    'https://ungummed-vincenza-unerudite.ngrok-free.dev',  # твоя NGROK адреса
+    'http://127.0.0.1:8000',
+    'http://localhost:8000',
+]
+
+ALLOWED_HOSTS = [
+    '*',
+    '.ngrok-free.dev',
+]
+
+if DEBUG:
+    ALLOWED_HOSTS.append('localhost')
+    ALLOWED_HOSTS.append('127.0.0.1')
 
 
 # Application definition
@@ -132,3 +148,5 @@ REST_FRAMEWORK = {
 
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
+
+

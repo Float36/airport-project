@@ -1,5 +1,6 @@
+from django.db import transaction
 from rest_framework import serializers
-from .models import Ticket, Order
+from .models import Ticket, Order, Transaction
 from airport.models import Flight, Seat
 from airport.serializers import FlightSerializer, SeatSerializer
 
@@ -39,7 +40,6 @@ class TicketCreateSerializer(serializers.ModelSerializer):
             'passenger_first_name',
             'passenger_last_name',
             'seat',
-            'status',
         )
 
     def validate(self, data):
@@ -57,6 +57,23 @@ class TicketCreateSerializer(serializers.ModelSerializer):
         return data
 
 
+class TransactionSerializer(serializers.ModelSerializer):
+    """
+    Serializer for transaction
+    """
+    status = serializers.CharField(source="get_status_display")
+
+    class Meta:
+        model = Transaction
+        fields = (
+            'id',
+            'status',
+            'amount',
+            'currency',
+            'provider_transaction_id',
+            'created_at',
+        )
+
 
 class OrderSerializer(serializers.ModelSerializer):
     """
@@ -65,10 +82,12 @@ class OrderSerializer(serializers.ModelSerializer):
     tickets = TicketSerializer(many=True, read_only=True)
     user = serializers.StringRelatedField()
     status = serializers.CharField(source='get_status_display')
+    transactions = TransactionSerializer(many=True, read_only=True)
+
 
     class Meta:
         model = Order
-        fields = ('id', 'user', 'created_at', 'status', 'tickets')
+        fields = ('id', 'user', 'created_at', 'status', 'tickets', 'transactions')
 
 
 class OrderCreateSerializer(serializers.ModelSerializer):
@@ -101,13 +120,18 @@ class OrderCreateSerializer(serializers.ModelSerializer):
 
         return tickets_data
 
-    # We override .create() to handle nested tickets.
+    # create() to handle nested tickets
     def create(self, validated_data):
         tickets_data = validated_data.pop('tickets')
-        order = Order.objects.create(**validated_data)
 
-        for ticket_data in tickets_data:
-            Ticket.objects.create(order=order, **ticket_data)
+        try:
+            with transaction.atomic():
+                order = Order.objects.create(**validated_data)
+                for ticket_data in tickets_data:
+                    Ticket.objects.create(order=order, **ticket_data)
+
+        except Exception as e:
+            raise serializers.ValidationError(f"Could not create order: {e}")
 
         return order
 

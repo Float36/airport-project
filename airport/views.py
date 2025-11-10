@@ -1,16 +1,25 @@
 from django.shortcuts import render
-from rest_framework import viewsets
-from .models import Country, City, Airline, Airplane, Airport, Flight
+from rest_framework import viewsets, permissions
+from .models import Country, City, Airline, Airplane, Airport, Flight, AirplaneType, Seat
 from .serializers import (
-    CountrySerializer, CitySerializer, CityCreateSerializer,
+    CountrySerializer,
+    CitySerializer,
+    CityCreateSerializer,
 
     AirportDetailSerializer,
     AirportListSerializer,
     AirportCreateSerializer,
 
+    AirlineCreateSerializer,
     AirlineSerializer,
-    AirplaneSerializer, AirplaneCreateSerializer, FlightSerializer,
-    FlightCreateSerializer, AirlineCreateSerializer
+
+    AirplaneTypeSerializer,
+    SeatSerializer,
+    AirplaneSerializer,
+    AirplaneCreateSerializer,
+
+    FlightSerializer,
+    FlightCreateSerializer
 )
 
 
@@ -26,6 +35,7 @@ class CityViewSet(viewsets.ModelViewSet):
         if self.action in ['list', 'retrieve']:
             return CitySerializer
         return CityCreateSerializer
+
 
 class AirportViewSet(viewsets.ModelViewSet):
     queryset = Airport.objects.select_related('city__country')
@@ -50,8 +60,21 @@ class AirlineViewSet(viewsets.ModelViewSet):
         return AirlineSerializer
 
 
+class AirplaneTypeViewSet(viewsets.ModelViewSet):
+    queryset = AirplaneType.objects.all()
+    serializer_class = AirplaneTypeSerializer
+    permission_classes = [permissions.IsAdminUser]
+
+
+class SeatViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = Seat.objects.all()
+    serializer_class = SeatSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    filterset_fields = ['airplane_type']
+
+
 class AirplaneViewSet(viewsets.ModelViewSet):
-    queryset = Airplane.objects.select_related('airline')
+    queryset = Airplane.objects.select_related('airline', 'airplane_type')
 
     def get_serializer_class(self):
         if self.action in ['list', 'retrieve']:
@@ -61,9 +84,10 @@ class AirplaneViewSet(viewsets.ModelViewSet):
 
 class FlightViewSet(viewsets.ModelViewSet):
     queryset = Flight.objects.select_related(
-        'departure_airport__country',
-        'arrival_airport__country',
-        'airplane__airline'
+        'departure_airport__city__country',
+        'arrival_airport__city__country',
+        'airplane__airline',
+        'airplane__airplane_type'
     )
 
     def get_serializer_class(self):

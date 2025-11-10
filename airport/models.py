@@ -67,10 +67,66 @@ class Airline(models.Model):
         return self.name
 
 
+class AirplaneType(models.Model):
+    """
+    New model for type of airplane
+    """
+    name = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def capacity(self):
+        """Dynamic capacity count"""
+        return self.seats.count()
+
+
+class Seat(models.Model):
+    """
+    Describes a specific seat on an airplane
+    """
+    class SeatType(models.TextChoices):
+        ECONOMY = "ECONOMY", _("Economy")
+        BUSINESS = "BUSINESS", _("Business")
+        FIRST = "FIRST", _("First")
+
+    airplane_type = models.ForeignKey(
+        AirplaneType,
+        on_delete=models.CASCADE,
+        related_name="seats"
+    )
+    row = models.PositiveIntegerField()     # row: 1, 2, 3
+    seat = models.CharField(max_length=1)   # seat: A, B, C
+    seat_type = models.CharField(
+        max_length=10,
+        choices=SeatType.choices,
+        default=SeatType.ECONOMY
+    )
+
+    class Meta:
+        unique_together = ('airplane_type', 'row', 'seat')
+        ordering = ['row', 'seat']
+
+    def __str__(self):
+        return f"{self.airplane_type.name}: {self.row}{self.seat} ({self.get_seat_type_display()})"
+
+
 class Airplane(models.Model):
-    model = models.CharField(max_length=100)
-    capacity = models.PositiveIntegerField()
-    airline = models.ForeignKey(Airline, on_delete=models.CASCADE, related_name="airplanes")
+    """
+    Airplane with a unique number
+    """
+    name = models.CharField(max_length=100)   # aircraft number(name) ex: UR-PSR
+    airplane_type = models.ForeignKey(
+        AirplaneType,
+        on_delete=models.CASCADE,
+        related_name="airplanes"
+    )
+    airline = models.ForeignKey(
+        Airline,
+        on_delete=models.CASCADE,
+        related_name="airplanes"
+    )
 
     def __str__(self):
         return f"{self.model} ({self.capacity})"
@@ -116,6 +172,15 @@ class Flight(models.Model):
 
     def __str__(self):
         return f"{self.flight_number}: {self.departure_airport} to {self.arrival_airport}"
+
+    @property
+    def available_seats_count(self):
+        """
+        Dynamic seats count
+        """
+        total_capacity = self.airplane.airplane_type.capacity
+        booked_tickets = self.tickets.count()
+        return total_capacity - booked_tickets
 
 
 

@@ -1,7 +1,7 @@
 from django.db import models
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
-from airport.models import Flight
+from airport.models import Flight, Seat
 
 
 class Order(models.Model):
@@ -54,7 +54,12 @@ class Ticket(models.Model):
     passenger_first_name = models.CharField(max_length=255)
     passenger_last_name = models.CharField(max_length=255)
 
-    seat = models.PositiveIntegerField()
+    seat = models.ForeignKey(
+        Seat,
+        on_delete=models.CASCADE,
+        related_name="tickets"
+    )
+
     status = models.CharField(
         max_length=10,
         choices=Status.choices,
@@ -68,5 +73,5 @@ class Ticket(models.Model):
     def __str__(self):
         return (
             f"{self.passenger_first_name} {self.passenger_last_name} "
-            f"(Flight: {self.flight.flight_number}, Seat: {self.seat})"
+            f"(Flight: {self.flight.flight_number}, Seat: {self.seat.row}{self.seat.seat})"
         )

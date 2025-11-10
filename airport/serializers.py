@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Country, City, Airport, Airline, Airplane, Flight
+from .models import Country, City, Airport, Airline, Airplane, Flight, AirplaneType, Seat
 
 
 # --- Country ---
@@ -78,16 +78,41 @@ class AirlineCreateSerializer(serializers.ModelSerializer):
         fields = ('name', 'home_base')
 
 
+class AirplaneTypeSerializer(serializers.ModelSerializer):
+    """
+    GET/POST for AirlineType
+    """
+    # Add from @property
+    capacity =serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = AirplaneType
+        fields = ('id', 'name', 'capacity')
+
+
+class SeatSerializer(serializers.ModelSerializer):
+    """
+    GET serializer
+    """
+    seat_type = serializers.CharField(source="get_seat_type_display")
+
+    class Meta:
+        model = Seat
+        fields = ('id', 'airplane_type', 'row', 'seat', 'seat_type')
+
+
 class AirplaneSerializer(serializers.ModelSerializer):
     """
     Serializer for (GET) planes
     """
     # Show airline name
     airline = AirlineSerializer(read_only=True)
+    airplane_type = AirplaneTypeSerializer(read_only=True)
 
     class Meta:
         model = Airplane
-        fields = ('id', 'model', 'capacity', 'airline')
+        fields = ('id', 'airline', 'airplane_type')
+
 
 class AirplaneCreateSerializer(serializers.ModelSerializer):
     """
@@ -95,7 +120,7 @@ class AirplaneCreateSerializer(serializers.ModelSerializer):
     """
     class Meta:
         model = Airplane
-        fields = ('model', 'capacity', 'airline')
+        fields = ('name', 'airline', 'airplane_type')
 
 
 

@@ -18,7 +18,7 @@ STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY')
 STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
 
 CSRF_TRUSTED_ORIGINS = [
-    'https://ungummed-vincenza-unerudite.ngrok-free.dev',  # твоя NGROK адреса
+    'https://ungummed-vincenza-unerudite.ngrok-free.dev',
     'http://127.0.0.1:8000',
     'http://localhost:8000',
 ]

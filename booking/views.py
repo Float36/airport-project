@@ -1,14 +1,16 @@
 import os
 
+import logging
+
 from django.shortcuts import render
 import datetime
 import stripe
 from decimal import Decimal
 from django.conf import settings
 from django.db import transaction
-from django.http import HttpResponse
+from django.http import HttpResponse, Http404
 from rest_framework.views import APIView
-from rest_framework import viewsets, mixins, status
+from rest_framework import viewsets, mixins, status, serializers, exceptions
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
@@ -19,10 +21,90 @@ from .serializers import (
 )
 
 
+logger = logging.getLogger("booking")
 stripe.api_key = settings.STRIPE_SECRET_KEY
 
+class AuditLoggingMixin:
+    """
+    Mixin for automatic logging CRUD
+    """
+    def get_user_str(self):
+        """Get 'User: 1' or 'AnonymousUser'"""
+        user = self.request.user
+        if user and user.is_authenticated:
+            return f"User {user.id} ({user.username})"
+        return "AnonymousUser"
+
+    def perform_create(self, serializer):
+        super().perform_create(serializer)
+        instance = serializer.instance
+        logger.info(
+            f"{self.get_user_str()} CREATED {instance.__class__.__name__} "
+            f"(ID: {instance.id})"
+        )
+
+    def perform_update(self, serializer):
+        super().perform_update(serializer)
+        instance = serializer.instance
+        logger.info(
+            f"{self.get_user_str()} UPDATED {instance.__class__.__name__} "
+            f"(ID: {instance.id})"
+        )
+
+    def perform_destroy(self, instance):
+        obj_id = instance.id
+        obj_class_name = instance.__class__.__name__
+
+        super().perform_destroy(instance)
+
+        logger.info(
+            f"{self.get_user_str()} DELETED {obj_class_name} "
+            f"(ID: {obj_id})"
+        )
+
+    def handle_exception(self, exc):
+        """
+        Logging for exception
+        """
+        response = super().handle_exception(exc)
+
+        user_str = self.get_user_str()
+        view_name = self.__class__.__name__
+        action = self.action
+
+        if isinstance(exc, serializers.ValidationError):
+            # Err 400
+            logger.warning(
+                f"{user_str} Validation Failed (400) on {action} "
+                f"in {view_name}: {exc.detail}"
+            )
+
+        elif isinstance(exc, (exceptions.PermissionDenied, exceptions.NotAuthenticated)):
+            # Err 403/401
+            logger.warning(
+                f"{user_str} Access Denied (401/403) on {action} "
+                f"in {view_name}: {exc.detail}"
+            )
+
+        elif isinstance(exc, Http404):
+            # Err 404
+            logger.warning(
+                f"{user_str} Not Found (404) on {action} "
+                f"in {view_name}: {exc.detail}"
+            )
+
+        else:
+            # Other (500)
+            logger.error(
+                f"{user_str} Unhandled Server Error (500) on {action} "
+                f"in {view_name}: {exc}",
+                exc_info=True
+            )
+
+        return response
 
 class OrderViewSet(
+    AuditLoggingMixin,
     mixins.CreateModelMixin,        # POST
     mixins.ListModelMixin,          # GET
     mixins.RetrieveModelMixin,      # GET /id/
@@ -72,6 +154,12 @@ class OrderViewSet(
             status=Order.Status.PENDING
         )
 
+        order = serializer.instance
+        logger.info(
+            f"Order {order.id} created successfully "
+            f"for user {self.request.user.id}."
+        )
+
     @action(
         methods=["POST"],
         detail=True,
@@ -80,9 +168,19 @@ class OrderViewSet(
     )
     def create_checkout_session(self, request, pk=None):
         order = self.get_object()
+        user = request.user
+
+        logger.debug(
+            f"User {user.id} attempting to create checkout session "
+            f"for Order {order.id}"
+        )
 
         # Check if order is waiting for pending
         if order.status != Order.Status.PENDING:
+            logger.warning(
+                f"Payment attempt failed for Order {order.id} (user: {user.id}). "
+                f"Reason: Order status is '{order.status}', not 'PENDING'."
+            )
             return Response(
                 {"error": "This order cannot be paid. It's already paid or cancelled."},
                 status=status.HTTP_400_BAD_REQUEST
@@ -98,6 +196,11 @@ class OrderViewSet(
         for ticket in order.tickets.all():
             ticket_price = ticket.flight.price
             total_amount += ticket_price
+
+            logger.debug(
+                f"[Order {order.id}] Processing ticket for flight {ticket.flight.id}. "
+                f"Price found: {ticket_price}"
+            )
 
             line_items.append({
                 'price_data': {
@@ -124,6 +227,11 @@ class OrderViewSet(
                 status=Transaction.Status.PENDING
             )
         except Exception as e:
+            logger.critical(
+                f"Failed to create PENDING transaction for Order {order.id} (user: {user.id}). "
+                f"Error: {e}",
+                exc_info=True  # Add full err traceback
+            )
             return Response(
                 {'error': f'Failed to create local transaction: {str(e)}'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -142,11 +250,23 @@ class OrderViewSet(
 
                 expires_at=expires_at_time,
             )
+
+            logger.info(
+                f"Stripe checkout session created successfully for Order {order.id} "
+                f"(Transaction: {transaction_pending.id}). "
+                f"Stripe Session ID: {checkout_session.id}"
+            )
             return Response({'sessionId': checkout_session['id'], 'url': checkout_session.url})
         except Exception as e:
+            logger.error(
+                f"Stripe API Error for Order {order.id} (Transaction: {transaction_pending.id}). "
+                f"Error: {e}",
+                exc_info=True
+            )
             return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class TicketViewSet(
+    AuditLoggingMixin,
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
     viewsets.GenericViewSet
@@ -179,12 +299,15 @@ class StripeWebhookView(APIView):
     Get msg from Stripe about success payment and update status
     """
     def post(self, request):
+        logger.debug("Stripe webhook received.")
+
         payload = request.body
         sig_header = request.META['HTTP_STRIPE_SIGNATURE']
         event = None
         webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
 
         if not webhook_secret:
+            logger.critical("STRIPE_WEBHOOK_SECRET is not set. Webhook cannot be processed.")
             return HttpResponse("Webhook secret not set", status=500)
 
         try:
@@ -192,9 +315,11 @@ class StripeWebhookView(APIView):
                 payload, sig_header, webhook_secret
             )
         except ValueError as e:
+            logger.warning(f"Stripe webhook payload error (ValueError): {e}", exc_info=True)
             return HttpResponse(status=400)
 
         except stripe._error.SignatureVerificationError as e:
+            logger.warning(f"Stripe webhook signature verification failed: {e}", exc_info=True)
             return HttpResponse(status=400)
 
         session = event['data']['object']
@@ -203,10 +328,14 @@ class StripeWebhookView(APIView):
         transaction_id = metadata.get('transaction_id')
 
         if not order_id or not transaction_id:
+            logger.error(
+                f"Stripe webhook missing metadata. "
+                f"Received order_id: {order_id}, transaction_id: {transaction_id}."
+            )
             return HttpResponse("Missing metadata in webhook", status=400)
 
 
-        # Use transaction.atomic so Order and Transaction updates together or not at all
+        # Update Order and Transaction  together or not at all
         try:
             with transaction.atomic():
                 order = Order.objects.get(id=order_id)
@@ -214,6 +343,10 @@ class StripeWebhookView(APIView):
 
                 # Checking if this webhook haven't already processed
                 if tx.status != Transaction.Status.PENDING:
+                    logger.info(
+                        f"Webhook for Transaction {tx.id} (Order {order.id}) "
+                        f"already processed. Current status: {tx.status}."
+                    )
                     return HttpResponse(f"Transaction {tx.id} already processed.", status=200)
 
                 if event['type'] == 'checkout.session.completed':
@@ -226,8 +359,11 @@ class StripeWebhookView(APIView):
                     # Update order
                     order.status = Order.Status.PAID
                     order.save()
-
-                    print(f"Order {order_id} PAID. Transaction {tx.id} SUCCESS.")
+                    logger.info(
+                        f"Order {order_id} PAID via Stripe. "
+                        f"Transaction {tx.id} set to SUCCESS. "
+                        f"Stripe Payment Intent: {tx.provider_transaction_id}"
+                    )
 
                 elif event['type'] == 'checkout.session.expired':
                     # Update transaction
@@ -237,18 +373,33 @@ class StripeWebhookView(APIView):
                     # Update order
                     order.status = Order.Status.CANCELLED
                     order.save()
-                    print(f"Order {order_id} CANCELLED. Transaction {tx.id} FAILED.")
+                    logger.warning(
+                        f"Stripe checkout session for Order {order_id} EXPIRED. "
+                        f"Transaction {tx.id} set to FAILED."
+                    )
 
         except Order.DoesNotExist:
-            print(f"ERROR: Webhook for non-existent Order ID {order_id}")
+            logger.error(
+                f"Stripe Webhook ERROR: Order.DoesNotExist for ID {order_id}. "
+                f"Metadata: {metadata}"
+            )
             return HttpResponse(status=404)
         except Transaction.DoesNotExist:
-            print(f"ERROR: Webhook for non-existent Transaction ID {transaction_id}")
+            logger.error(
+                f"Stripe Webhook ERROR: Transaction.DoesNotExist for ID {transaction_id}. "
+                f"Metadata: {metadata}"
+            )
             return HttpResponse(status=404)
         except Exception as e:
-            print(f"ERROR processing webhook: {e}")
+            logger.critical(
+                f"Stripe Webhook CRITICAL unknown error. Metadata: {metadata}. Error: {e}",
+                exc_info=True
+            )
             return HttpResponse(status=500)
 
+        logger.info(
+            f"Stripe webhook POST success"
+        )
         return HttpResponse(status=200)
 
 

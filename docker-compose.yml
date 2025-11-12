@@ -1,0 +1,28 @@
+services:
+  # DB postgres
+  db:
+    image: postgres:17-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # save data in dir "postgres_data"
+    environment:
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5433:5432"
+
+  # Django app
+  web:
+    build: .      # Build image from Dockerfile
+    command: python manage.py runserver 0.0.0.0:8000
+    volumes:
+      - .:/app
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./.env  # Instant code changes without a build
+    depends_on:
+      - db      # First db, second web
+
+volumes:
+  postgres_data:

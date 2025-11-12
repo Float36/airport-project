@@ -15,18 +15,20 @@ load_dotenv(os.path.join(BASE_DIR, '.env'))
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = os.getenv('SECRET_KEY')
 DEBUG = os.getenv('DEBUG', 'False') == 'True'
+NGROK_HOSTNAME = os.getenv('NGROK_HOSTNAME')
 
 STRIPE_PUBLISHABLE_KEY = os.getenv('STRIPE_PUBLISHABLE_KEY')
 STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
 
 CSRF_TRUSTED_ORIGINS = [
-    'https://ungummed-vincenza-unerudite.ngrok-free.dev',
     'http://127.0.0.1:8000',
     'http://localhost:8000',
 ]
 
+if NGROK_HOSTNAME:
+    CSRF_TRUSTED_ORIGINS.append(f"https://{NGROK_HOSTNAME}")
+
 ALLOWED_HOSTS = [
-    '*',
     '.ngrok-free.dev',
 ]
 
@@ -49,6 +51,7 @@ INSTALLED_APPS = [
     'django_filters',
     'drf_spectacular',
     'rest_framework_simplejwt',
+    'core',
 
     'users',
     'airport',
@@ -94,8 +97,8 @@ DATABASES = {
         'NAME': os.getenv('DB_NAME'),
         'USER': os.getenv('DB_USER'),
         'PASSWORD': os.getenv('DB_PASSWORD'),
-        'HOST': os.getenv('DB_HOST'),
-        'PORT': os.getenv('DB_PORT'),
+        'HOST': os.getenv('DB_HOST', 'db'),
+        'PORT': os.getenv('DB_PORT', '5432'),
     }
 }
 

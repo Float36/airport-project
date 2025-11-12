@@ -4,6 +4,7 @@ from django.http import Http404
 from rest_framework import viewsets, permissions, serializers, exceptions
 from .models import Country, City, Airline, Airplane, Airport, Flight, AirplaneType, Seat
 from .filters import FlightFilter
+from core.mixins import AuditLoggingMixin
 from .serializers import (
     CountrySerializer,
     CitySerializer,
@@ -29,93 +30,15 @@ from .serializers import (
 logger = logging.getLogger("airport")
 
 
-class AuditLoggingMixin:
-    """
-    Mixin for automatic logging CRUD
-    """
-    def get_user_str(self):
-        """Get 'User: 1' or 'AnonymousUser'"""
-        user = self.request.user
-        if user and user.is_authenticated:
-            return f"User {user.id} ({user.username})"
-        return "AnonymousUser"
-
-    def perform_create(self, serializer):
-        super().perform_create(serializer)
-        instance = serializer.instance
-        logger.info(
-            f"{self.get_user_str()} CREATED {instance.__class__.__name__} "
-            f"(ID: {instance.id})"
-        )
-
-    def perform_update(self, serializer):
-        super().perform_update(serializer)
-        instance = serializer.instance
-        logger.info(
-            f"{self.get_user_str()} UPDATED {instance.__class__.__name__} "
-            f"(ID: {instance.id})"
-        )
-
-    def perform_destroy(self, instance):
-        obj_id = instance.id
-        obj_class_name = instance.__class__.__name__
-
-        super().perform_destroy(instance)
-
-        logger.info(
-            f"{self.get_user_str()} DELETED {obj_class_name} "
-            f"(ID: {obj_id})"
-        )
-
-    def handle_exception(self, exc):
-        """
-        Logging for exception
-        """
-        response = super().handle_exception(exc)
-
-        user_str = self.get_user_str()
-        view_name = self.__class__.__name__
-        action = self.action
-
-        if isinstance(exc, serializers.ValidationError):
-            # Err 400
-            logger.warning(
-                f"{user_str} Validation Failed (400) on {action} "
-                f"in {view_name}: {exc.detail}"
-            )
-
-        elif isinstance(exc, (exceptions.PermissionDenied, exceptions.NotAuthenticated)):
-            # Err 403/401
-            logger.warning(
-                f"{user_str} Access Denied (401/403) on {action} "
-                f"in {view_name}: {exc.detail}"
-            )
-
-        elif isinstance(exc, Http404):
-            # Err 404
-            logger.warning(
-                f"{user_str} Not Found (404) on {action} "
-                f"in {view_name}: {exc.detail}"
-            )
-
-        else:
-            # Other (500)
-            logger.error(
-                f"{user_str} Unhandled Server Error (500) on {action} "
-                f"in {view_name}: {exc}",
-                exc_info=True
-            )
-
-        return response
-
-
 class CountryViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     queryset = Country.objects.all()
     serializer_class = CountrySerializer
+    logger = logger
 
 
 class CityViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     queryset = City.objects.select_related('country')
+    logger = logger
 
     def get_serializer_class(self):
         if self.action in ['list', 'retrieve']:
@@ -125,6 +48,7 @@ class CityViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
 
 class AirportViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     queryset = Airport.objects.select_related('city__country')
+    logger = logger
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -139,6 +63,7 @@ class AirportViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
 
 class AirlineViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     queryset = Airline.objects.all()
+    logger = logger
 
     def get_serializer_class(self):
         if self.action in ['create']:
@@ -150,6 +75,7 @@ class AirplaneTypeViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     queryset = AirplaneType.objects.all()
     serializer_class = AirplaneTypeSerializer
     permission_classes = [permissions.IsAdminUser]
+    logger = logger
 
 
 class SeatViewSet(viewsets.ReadOnlyModelViewSet):
@@ -157,10 +83,12 @@ class SeatViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = SeatSerializer
     permission_classes = [permissions.IsAuthenticated]
     filterset_fields = ['airplane_type']
+    logger = logger
 
 
 class AirplaneViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     queryset = Airplane.objects.select_related('airline', 'airplane_type')
+    logger = logger
 
     def get_serializer_class(self):
         if self.action in ['list', 'retrieve']:
@@ -177,6 +105,8 @@ class FlightViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     )
 
     filterset_class = FlightFilter
+
+    logger = logger
 
     def get_serializer_class(self):
         if self.action in ['list', 'retrieve']:

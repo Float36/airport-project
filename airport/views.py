@@ -2,6 +2,10 @@ from django.shortcuts import render
 import logging
 from django.http import Http404
 from rest_framework import viewsets, permissions, serializers, exceptions
+from rest_framework.decorators import action
+from rest_framework.response import Response
+
+from .ai_services import AI_Assistant
 from .models import Country, City, Airline, Airplane, Airport, Flight, AirplaneType, Seat
 from .filters import FlightFilter
 from core.mixins import AuditLoggingMixin
@@ -45,6 +49,20 @@ class CityViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
             return CitySerializer
         return CityCreateSerializer
 
+    @action(detail=True, methods=['GET'], url_path='guide')
+    def city_guide(self, request, pk=None):
+        """
+        GET /api/v1/cities/{id}/guide/
+        Generate info about city
+        """
+        city = self.get_object()
+        ai = AI_Assistant()
+        guide_text = ai.get_city_guide(city.name, city.country.name)
+
+        return Response({
+            "city": city.name,
+            "ai_guide": guide_text
+        })
 
 class AirportViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     queryset = Airport.objects.select_related('city__country')

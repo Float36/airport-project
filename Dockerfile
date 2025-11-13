@@ -1,11 +1,12 @@
 FROM python:3.12-slim
 
-ENV PYTHONDONTWRITEBYTCODE 1    # ignore .pyc (bitcode)
+ENV PYTHONDONTWRITEBYTECODE 1    # ignore .pyc (bitcode)
 
 ENV PYTHONUNBUFFERED 1          # logs without buffering
 
+# install dependencies
 RUN apt-get update \
-    && apt-get install -y build-essential libpq-dev \       # install dependencies
+    && apt-get install -y build-essential libpq-dev \
     && apt-get clean
 
 WORKDIR /app

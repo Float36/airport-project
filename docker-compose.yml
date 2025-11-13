@@ -23,6 +23,17 @@ services:
       - ./.env  # Instant code changes without a build
     depends_on:
       - db      # First db, second web
+      - ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
 
 volumes:
   postgres_data:
+  ollama_data:

@@ -1,8 +1,5 @@
-# core/mixins.py
-
-import logging
 from django.http import Http404
-from rest_framework import serializers, exceptions
+from rest_framework import exceptions, serializers
 
 
 class AuditLoggingMixin:
@@ -59,7 +56,9 @@ class AuditLoggingMixin:
                 f"in {view_name}: {exc.detail}"
             )
 
-        elif isinstance(exc, (exceptions.PermissionDenied, exceptions.NotAuthenticated)):
+        elif isinstance(
+            exc, (exceptions.PermissionDenied, exceptions.NotAuthenticated)
+        ):
             # Err 403/401
             self.logger.warning(
                 f"{user_str} Access Denied (401/403) on {action} "
@@ -78,7 +77,7 @@ class AuditLoggingMixin:
             self.logger.error(
                 f"{user_str} Unhandled Server Error (500) on {action} "
                 f"in {view_name}: {exc}",
-                exc_info=True
+                exc_info=True,
             )
 
         return response

@@ -1,12 +1,17 @@
-from django.shortcuts import render
+import logging
 from rest_framework import viewsets
 from .models import User
 from .serializers import UserSerializer
+from core.mixins import AuditLoggingMixin
 
 
-class UserViewSet(viewsets.ModelViewSet):
+logger = logging.getLogger("users")
+
+
+class UserViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     """
     API for seen users
     """
     queryset = User.objects.all()
     serializer_class = UserSerializer
+    logger = logger

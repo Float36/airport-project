@@ -75,3 +75,46 @@ class Ticket(models.Model):
             f"{self.passenger_first_name} {self.passenger_last_name} "
             f"(Flight: {self.flight.flight_number}, Seat: {self.seat.row}{self.seat.seat})"
         )
+
+
+class Transaction(models.Model):
+    """
+    Model for storing payment transactions
+    """
+    class Status(models.TextChoices):
+        PENDING = "PENDING", _("Pending")  # Payment initiated
+        SUCCESS = "SUCCESS", _("Success")  # Payment successful
+        FAILED = "FAILED", _("Failed")  # Payment failed
+
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        related_name="transaction"
+    )
+
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    currency = models.CharField(max_length=5, default="USD")
+    status = models.CharField(
+        max_length=10,
+        choices=Status.choices,
+        default=Status.PENDING
+    )
+
+    provider_transaction_id = models.CharField(
+        max_length=255,
+        blank=True,
+        null=True,
+        db_index=True
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return (
+            f"Transaction #{self.id} for Order #{self.order.id} "
+            f"({self.get_status_display()}) - {self.amount} {self.currency}"
+        )

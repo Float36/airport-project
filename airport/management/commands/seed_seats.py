@@ -5,12 +5,12 @@ from django.db import transaction
 
 SEAT_BLUEPRINTS = {
     "Boeing 737": {
-        "rows": range(1, 31),  # 30 рядів
-        "seats": ['A', 'B', 'C', 'D', 'E', 'F'],  # 6 місць у ряду
+        "rows": range(1, 31),
+        "seats": ['A', 'B', 'C', 'D', 'E', 'F'],
         "default_type": Seat.SeatType.ECONOMY,
     },
     "Airbus A320": {
-        "rows": range(1, 26),  # 25 рядів
+        "rows": range(1, 26),
         "seats": ['A', 'B', 'C', 'D', 'E', 'F'],
         "default_type": Seat.SeatType.ECONOMY,
     },

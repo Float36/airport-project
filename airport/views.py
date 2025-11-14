@@ -1,6 +1,14 @@
 from django.shortcuts import render
-from rest_framework import viewsets, permissions
+import logging
+from django.http import Http404
+from rest_framework import viewsets, permissions, serializers, exceptions
+from rest_framework.decorators import action
+from rest_framework.response import Response
+
+from .ai_services import AI_Assistant
 from .models import Country, City, Airline, Airplane, Airport, Flight, AirplaneType, Seat
+from .filters import FlightFilter
+from core.mixins import AuditLoggingMixin
 from .serializers import (
     CountrySerializer,
     CitySerializer,
@@ -23,22 +31,42 @@ from .serializers import (
 )
 
 
-class CountryViewSet(viewsets.ModelViewSet):
+logger = logging.getLogger("airport")
+
+
+class CountryViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     queryset = Country.objects.all()
     serializer_class = CountrySerializer
+    logger = logger
 
 
-class CityViewSet(viewsets.ModelViewSet):
+class CityViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     queryset = City.objects.select_related('country')
+    logger = logger
 
     def get_serializer_class(self):
         if self.action in ['list', 'retrieve']:
             return CitySerializer
         return CityCreateSerializer
 
+    @action(detail=True, methods=['GET'], url_path='guide')
+    def city_guide(self, request, pk=None):
+        """
+        GET /api/v1/cities/{id}/guide/
+        Generate info about city
+        """
+        city = self.get_object()
+        ai = AI_Assistant()
+        guide_text = ai.get_city_guide(city.name, city.country.name)
 
-class AirportViewSet(viewsets.ModelViewSet):
+        return Response({
+            "city": city.name,
+            "ai_guide": guide_text
+        })
+
+class AirportViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     queryset = Airport.objects.select_related('city__country')
+    logger = logger
 
     def get_serializer_class(self):
         if self.action == 'list':
@@ -51,8 +79,9 @@ class AirportViewSet(viewsets.ModelViewSet):
 
 
 
-class AirlineViewSet(viewsets.ModelViewSet):
+class AirlineViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     queryset = Airline.objects.all()
+    logger = logger
 
     def get_serializer_class(self):
         if self.action in ['create']:
@@ -60,10 +89,11 @@ class AirlineViewSet(viewsets.ModelViewSet):
         return AirlineSerializer
 
 
-class AirplaneTypeViewSet(viewsets.ModelViewSet):
+class AirplaneTypeViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     queryset = AirplaneType.objects.all()
     serializer_class = AirplaneTypeSerializer
     permission_classes = [permissions.IsAdminUser]
+    logger = logger
 
 
 class SeatViewSet(viewsets.ReadOnlyModelViewSet):
@@ -71,10 +101,12 @@ class SeatViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = SeatSerializer
     permission_classes = [permissions.IsAuthenticated]
     filterset_fields = ['airplane_type']
+    logger = logger
 
 
-class AirplaneViewSet(viewsets.ModelViewSet):
+class AirplaneViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     queryset = Airplane.objects.select_related('airline', 'airplane_type')
+    logger = logger
 
     def get_serializer_class(self):
         if self.action in ['list', 'retrieve']:
@@ -82,13 +114,17 @@ class AirplaneViewSet(viewsets.ModelViewSet):
         return AirplaneCreateSerializer
 
 
-class FlightViewSet(viewsets.ModelViewSet):
+class FlightViewSet(AuditLoggingMixin, viewsets.ModelViewSet):
     queryset = Flight.objects.select_related(
         'departure_airport__city__country',
         'arrival_airport__city__country',
         'airplane__airline',
         'airplane__airplane_type'
     )
+
+    filterset_class = FlightFilter
+
+    logger = logger
 
     def get_serializer_class(self):
         if self.action in ['list', 'retrieve']:

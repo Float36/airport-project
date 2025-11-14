@@ -4,6 +4,8 @@
 .env
 .idea/
 
+/logs/
+
 ### Django ###
 *.log
 *.pot

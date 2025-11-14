@@ -144,7 +144,8 @@ class FlightSerializer(serializers.ModelSerializer):
             'departure_time',
             'arrival_time',
             'airplane',
-            'status'
+            'status',
+            'price'
         )
 
 class FlightCreateSerializer(serializers.ModelSerializer):
@@ -160,5 +161,6 @@ class FlightCreateSerializer(serializers.ModelSerializer):
             'departure_time',
             'arrival_time',
             'airplane',
-            'status'
+            'status',
+            'price'
         )

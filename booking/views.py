@@ -1,26 +1,28 @@
-import os
-
-import logging
-
-from django.shortcuts import render
 import datetime
-import stripe
+import logging
+import os
 from decimal import Decimal
+
+import stripe
 from django.conf import settings
 from django.db import transaction
 from django.http import HttpResponse
-from rest_framework.views import APIView
-from rest_framework import viewsets, mixins, status
+from rest_framework import mixins, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.response import Response
 from rest_framework.permissions import IsAdminUser, IsAuthenticated
+from rest_framework.response import Response
+from rest_framework.views import APIView
 
-from .models import Ticket, Order, Transaction
-from .serializers import (
-    TicketSerializer, OrderSerializer, OrderCreateSerializer, TransactionSerializer
-)
 from core.mixins import AuditLoggingMixin
 
+from .models import Order, Ticket, Transaction
+from .serializers import (
+    OrderCreateSerializer,
+    OrderSerializer,
+    TicketSerializer,
+    TransactionSerializer,
+)
+from .tasks import send_success_email_task
 
 logger = logging.getLogger("booking")
 stripe.api_key = settings.STRIPE_SECRET_KEY
@@ -28,10 +30,10 @@ stripe.api_key = settings.STRIPE_SECRET_KEY
 
 class OrderViewSet(
     AuditLoggingMixin,
-    mixins.CreateModelMixin,        # POST
-    mixins.ListModelMixin,          # GET
-    mixins.RetrieveModelMixin,      # GET /id/
-    viewsets.GenericViewSet
+    mixins.CreateModelMixin,  # POST
+    mixins.ListModelMixin,  # GET
+    mixins.RetrieveModelMixin,  # GET /id/
+    viewsets.GenericViewSet,
 ):
     """
     ViewSet for Creating and Viewing Orders.
@@ -51,14 +53,14 @@ class OrderViewSet(
         """
         user = self.request.user
         base_queryset = Order.objects.prefetch_related(
-            'tickets__seat',
-            'tickets__flight__departure_airport',
-            'tickets__flight__arrival_airport',
-            'tickets__flight__airplane__airplane_type',
-            'transaction'
+            "tickets__seat",
+            "tickets__flight__departure_airport",
+            "tickets__flight__arrival_airport",
+            "tickets__flight__airplane__airplane_type",
+            "transaction",
         )
 
-        if user.is_staff or (hasattr(user, 'role') and user.role == 'ADMIN'):
+        if user.is_staff or (hasattr(user, "role") and user.role == "ADMIN"):
             return base_queryset.all()
 
         return base_queryset.filter(user=user)
@@ -73,10 +75,7 @@ class OrderViewSet(
         Automatically bind the order to the current
         user and set the status to PENDING.
         """
-        serializer.save(
-            user=self.request.user,
-            status=Order.Status.PENDING
-        )
+        serializer.save(user=self.request.user, status=Order.Status.PENDING)
 
         order = serializer.instance
         logger.info(
@@ -107,7 +106,7 @@ class OrderViewSet(
             )
             return Response(
                 {"error": "This order cannot be paid. It's already paid or cancelled."},
-                status=status.HTTP_400_BAD_REQUEST
+                status=status.HTTP_400_BAD_REQUEST,
             )
 
         expires_at_time = int(
@@ -126,21 +125,22 @@ class OrderViewSet(
                 f"Price found: {ticket_price}"
             )
 
-            line_items.append({
-                'price_data': {
-                    'currency': 'usd',
-                    'product_data': {
-                        'name': f"Ticket: {ticket.flight.flight_number}",
-                        'description': (
-                            f"Seat {ticket.seat.row}{ticket.seat.seat} for "
-                            f"{ticket.passenger_first_name} {ticket.passenger_last_name}"
-                        ),
+            line_items.append(
+                {
+                    "price_data": {
+                        "currency": "usd",
+                        "product_data": {
+                            "name": f"Ticket: {ticket.flight.flight_number}",
+                            "description": (
+                                f"Seat {ticket.seat.row}{ticket.seat.seat} for "
+                                f"{ticket.passenger_first_name} {ticket.passenger_last_name}"
+                            ),
+                        },
+                        "unit_amount": int(ticket.flight.price * 100),
                     },
-                    'unit_amount': int(ticket.flight.price * 100),
-                },
-                'quantity': 1,
-            })
-
+                    "quantity": 1,
+                }
+            )
 
         # Create a PENDING transaction before creating a Stripe session
         try:
@@ -148,30 +148,32 @@ class OrderViewSet(
                 order=order,
                 amount=total_amount,
                 currency="usd",
-                status=Transaction.Status.PENDING
+                status=Transaction.Status.PENDING,
             )
         except Exception as e:
             logger.critical(
                 f"Failed to create PENDING transaction for Order {order.id} (user: {user.id}). "
                 f"Error: {e}",
-                exc_info=True  # Add full err traceback
+                exc_info=True,  # Add full err traceback
             )
             return Response(
-                {'error': f'Failed to create local transaction: {str(e)}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {"error": f"Failed to create local transaction: {str(e)}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
         # Create Stripe session
         try:
             checkout_session = stripe.checkout.Session.create(
                 line_items=line_items,
-                mode='payment',
+                mode="payment",
                 # Return order id to find it on webhook
-                metadata={'order_id': order.id, 'transaction_id': transaction_pending.id},
+                metadata={
+                    "order_id": order.id,
+                    "transaction_id": transaction_pending.id,
+                },
                 # URL, where user is redirected
                 success_url="http://example.com/success?session_id={CHECKOUT_SESSION_ID}",
                 cancel_url="http://example.com/cancel",
-
                 expires_at=expires_at_time,
             )
 
@@ -180,30 +182,36 @@ class OrderViewSet(
                 f"(Transaction: {transaction_pending.id}). "
                 f"Stripe Session ID: {checkout_session.id}"
             )
-            return Response({'sessionId': checkout_session['id'], 'url': checkout_session.url})
+            return Response(
+                {"sessionId": checkout_session["id"], "url": checkout_session.url}
+            )
         except Exception as e:
             logger.error(
                 f"Stripe API Error for Order {order.id} (Transaction: {transaction_pending.id}). "
                 f"Error: {e}",
-                exc_info=True
+                exc_info=True,
             )
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 
 class TicketViewSet(
     AuditLoggingMixin,
     mixins.ListModelMixin,
     mixins.RetrieveModelMixin,
-    viewsets.GenericViewSet
+    viewsets.GenericViewSet,
 ):
     """
     (For Admins) Read-Only ViewSet to view ALL tickets in the system
     """
+
     queryset = Ticket.objects.select_related(
-        'order__user',
-        'seat',
-        'flight__departure_airport',
-        'flight__arrival_airport',
-        'flight__airplane__airplane_type'
+        "order__user",
+        "seat",
+        "flight__departure_airport",
+        "flight__arrival_airport",
+        "flight__airplane__airplane_type",
     )
     serializer_class = TicketSerializer
     permission_classes = [IsAdminUser]
@@ -214,6 +222,7 @@ class TransactionViewSet(viewsets.ReadOnlyModelViewSet):
     """
     VeiwSet for Transactions, only for admin
     """
+
     queryset = Transaction.objects.all().select_related("order__user")
     serializer_class = TransactionSerializer
     permission_classes = [IsAdminUser]
@@ -223,34 +232,39 @@ class StripeWebhookView(APIView):
     """
     Get msg from Stripe about success payment and update status
     """
+
     def post(self, request):
         logger.debug("Stripe webhook received.")
 
         payload = request.body
-        sig_header = request.META['HTTP_STRIPE_SIGNATURE']
+        sig_header = request.META["HTTP_STRIPE_SIGNATURE"]
         event = None
         webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
 
         if not webhook_secret:
-            logger.critical("STRIPE_WEBHOOK_SECRET is not set. Webhook cannot be processed.")
+            logger.critical(
+                "STRIPE_WEBHOOK_SECRET is not set. Webhook cannot be processed."
+            )
             return HttpResponse("Webhook secret not set", status=500)
 
         try:
-            event = stripe.Webhook.construct_event(
-                payload, sig_header, webhook_secret
-            )
+            event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
         except ValueError as e:
-            logger.warning(f"Stripe webhook payload error (ValueError): {e}", exc_info=True)
+            logger.warning(
+                f"Stripe webhook payload error (ValueError): {e}", exc_info=True
+            )
             return HttpResponse(status=400)
 
         except stripe._error.SignatureVerificationError as e:
-            logger.warning(f"Stripe webhook signature verification failed: {e}", exc_info=True)
+            logger.warning(
+                f"Stripe webhook signature verification failed: {e}", exc_info=True
+            )
             return HttpResponse(status=400)
 
-        session = event['data']['object']
-        metadata = session.get('metadata', {})
-        order_id = metadata.get('order_id')
-        transaction_id = metadata.get('transaction_id')
+        session = event["data"]["object"]
+        metadata = session.get("metadata", {})
+        order_id = metadata.get("order_id")
+        transaction_id = metadata.get("transaction_id")
 
         if not order_id or not transaction_id:
             logger.error(
@@ -258,7 +272,6 @@ class StripeWebhookView(APIView):
                 f"Received order_id: {order_id}, transaction_id: {transaction_id}."
             )
             return HttpResponse("Missing metadata in webhook", status=400)
-
 
         # Update Order and Transaction  together or not at all
         try:
@@ -272,25 +285,34 @@ class StripeWebhookView(APIView):
                         f"Webhook for Transaction {tx.id} (Order {order.id}) "
                         f"already processed. Current status: {tx.status}."
                     )
-                    return HttpResponse(f"Transaction {tx.id} already processed.", status=200)
+                    return HttpResponse(
+                        f"Transaction {tx.id} already processed.", status=200
+                    )
 
-                if event['type'] == 'checkout.session.completed':
+                if event["type"] == "checkout.session.completed":
                     # Update transaction
                     tx.status = Transaction.Status.SUCCESS
                     # Save id from Stripe
-                    tx.provider_transaction_id = session.get('payment_intent') or session.id
+                    tx.provider_transaction_id = (
+                        session.get("payment_intent") or session.id
+                    )
                     tx.save()
 
                     # Update order
                     order.status = Order.Status.PAID
                     order.save()
+
+                    order.tickets.all().update(status=Ticket.Status.CONFIRMED)
+
                     logger.info(
                         f"Order {order_id} PAID via Stripe. "
                         f"Transaction {tx.id} set to SUCCESS. "
                         f"Stripe Payment Intent: {tx.provider_transaction_id}"
                     )
+                    # Call task
+                    send_success_email_task.delay(order.id)
 
-                elif event['type'] == 'checkout.session.expired':
+                elif event["type"] == "checkout.session.expired":
                     # Update transaction
                     tx.status = Transaction.Status.FAILED
                     tx.save()
@@ -298,6 +320,9 @@ class StripeWebhookView(APIView):
                     # Update order
                     order.status = Order.Status.CANCELLED
                     order.save()
+
+                    order.tickets.all().delete()
+
                     logger.warning(
                         f"Stripe checkout session for Order {order_id} EXPIRED. "
                         f"Transaction {tx.id} set to FAILED."
@@ -318,16 +343,9 @@ class StripeWebhookView(APIView):
         except Exception as e:
             logger.critical(
                 f"Stripe Webhook CRITICAL unknown error. Metadata: {metadata}. Error: {e}",
-                exc_info=True
+                exc_info=True,
             )
             return HttpResponse(status=500)
 
-        logger.info(
-            f"Stripe webhook POST success"
-        )
+        logger.info(f"Stripe webhook POST success")
         return HttpResponse(status=200)
-
-
-
-
-

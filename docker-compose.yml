@@ -11,6 +11,11 @@ services:
     ports:
       - "5433:5432"
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
   # Django app
   web:
     build: .      # Build image from Dockerfile
@@ -24,8 +29,20 @@ services:
     depends_on:
       - db      # First db, second web
       - ollama
+      - redis
     environment:
       - OLLAMA_HOST=http://ollama:11434
+
+  celery:
+    build: .
+    command: celery -A airport_config worker -l info
+    volumes:
+      - .:/app
+    env_file:
+      - ./.env
+    depends_on:
+      - redis
+      - db
 
   ollama:
     image: ollama/ollama:latest

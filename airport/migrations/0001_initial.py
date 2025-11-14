@@ -8,110 +8,253 @@ class Migration(migrations.Migration):
 
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
-            name='Airline',
+            name="Airline",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=255, unique=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("name", models.CharField(max_length=255, unique=True)),
             ],
         ),
         migrations.CreateModel(
-            name='AirplaneType',
+            name="AirplaneType",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=100, unique=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("name", models.CharField(max_length=100, unique=True)),
             ],
         ),
         migrations.CreateModel(
-            name='Airport',
+            name="Airport",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=255)),
-                ('iata_code', models.CharField(max_length=3, unique=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("name", models.CharField(max_length=255)),
+                ("iata_code", models.CharField(max_length=3, unique=True)),
             ],
         ),
         migrations.CreateModel(
-            name='City',
+            name="City",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=100)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("name", models.CharField(max_length=100)),
             ],
             options={
-                'verbose_name_plural': 'cities',
-                'ordering': ['name'],
+                "verbose_name_plural": "cities",
+                "ordering": ["name"],
             },
         ),
         migrations.CreateModel(
-            name='Country',
+            name="Country",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=100, unique=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("name", models.CharField(max_length=100, unique=True)),
             ],
             options={
-                'verbose_name_plural': 'countries',
-                'ordering': ['name'],
+                "verbose_name_plural": "countries",
+                "ordering": ["name"],
             },
         ),
         migrations.CreateModel(
-            name='Airplane',
+            name="Airplane",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=100)),
-                ('airline', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='airplanes', to='airport.airline')),
-                ('airplane_type', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='airplanes', to='airport.airplanetype')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("name", models.CharField(max_length=100)),
+                (
+                    "airline",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="airplanes",
+                        to="airport.airline",
+                    ),
+                ),
+                (
+                    "airplane_type",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="airplanes",
+                        to="airport.airplanetype",
+                    ),
+                ),
             ],
         ),
         migrations.AddField(
-            model_name='airline',
-            name='home_base',
-            field=models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='airlines', to='airport.airport'),
+            model_name="airline",
+            name="home_base",
+            field=models.ForeignKey(
+                blank=True,
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="airlines",
+                to="airport.airport",
+            ),
         ),
         migrations.AddField(
-            model_name='airport',
-            name='city',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='airports', to='airport.city'),
+            model_name="airport",
+            name="city",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="airports",
+                to="airport.city",
+            ),
         ),
         migrations.AddField(
-            model_name='city',
-            name='country',
-            field=models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='cities', to='airport.country'),
+            model_name="city",
+            name="country",
+            field=models.ForeignKey(
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="cities",
+                to="airport.country",
+            ),
         ),
         migrations.CreateModel(
-            name='Flight',
+            name="Flight",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('flight_number', models.CharField(max_length=10, unique=True)),
-                ('departure_time', models.DateTimeField()),
-                ('arrival_time', models.DateTimeField()),
-                ('status', models.CharField(choices=[('SCHEDULED', 'Scheduled'), ('BOARDING', 'Boarding'), ('DEPARTED', 'Departed'), ('DELAYED', 'Delayed'), ('CANCELLED', 'Cancelled')], default='SCHEDULED', max_length=10)),
-                ('airplane', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='flights', to='airport.airplane')),
-                ('arrival_airport', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='arriving_flights', to='airport.airport')),
-                ('departure_airport', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='departing_flights', to='airport.airport')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("flight_number", models.CharField(max_length=10, unique=True)),
+                ("departure_time", models.DateTimeField()),
+                ("arrival_time", models.DateTimeField()),
+                (
+                    "status",
+                    models.CharField(
+                        choices=[
+                            ("SCHEDULED", "Scheduled"),
+                            ("BOARDING", "Boarding"),
+                            ("DEPARTED", "Departed"),
+                            ("DELAYED", "Delayed"),
+                            ("CANCELLED", "Cancelled"),
+                        ],
+                        default="SCHEDULED",
+                        max_length=10,
+                    ),
+                ),
+                (
+                    "airplane",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="flights",
+                        to="airport.airplane",
+                    ),
+                ),
+                (
+                    "arrival_airport",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="arriving_flights",
+                        to="airport.airport",
+                    ),
+                ),
+                (
+                    "departure_airport",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="departing_flights",
+                        to="airport.airport",
+                    ),
+                ),
             ],
             options={
-                'ordering': ['departure_time'],
+                "ordering": ["departure_time"],
             },
         ),
         migrations.AlterUniqueTogether(
-            name='city',
-            unique_together={('name', 'country')},
+            name="city",
+            unique_together={("name", "country")},
         ),
         migrations.CreateModel(
-            name='Seat',
+            name="Seat",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('row', models.PositiveIntegerField()),
-                ('seat', models.CharField(max_length=1)),
-                ('seat_type', models.CharField(choices=[('ECONOMY', 'Economy'), ('BUSINESS', 'Business'), ('FIRST', 'First')], default='ECONOMY', max_length=10)),
-                ('airplane_type', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='seats', to='airport.airplanetype')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("row", models.PositiveIntegerField()),
+                ("seat", models.CharField(max_length=1)),
+                (
+                    "seat_type",
+                    models.CharField(
+                        choices=[
+                            ("ECONOMY", "Economy"),
+                            ("BUSINESS", "Business"),
+                            ("FIRST", "First"),
+                        ],
+                        default="ECONOMY",
+                        max_length=10,
+                    ),
+                ),
+                (
+                    "airplane_type",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="seats",
+                        to="airport.airplanetype",
+                    ),
+                ),
             ],
             options={
-                'ordering': ['row', 'seat'],
-                'unique_together': {('airplane_type', 'row', 'seat')},
+                "ordering": ["row", "seat"],
+                "unique_together": {("airplane_type", "row", "seat")},
             },
         ),
     ]

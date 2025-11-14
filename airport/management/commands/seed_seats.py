@@ -1,17 +1,17 @@
 from django.core.management.base import BaseCommand
-from airport.models import AirplaneType, Seat
 from django.db import transaction
 
+from airport.models import AirplaneType, Seat
 
 SEAT_BLUEPRINTS = {
     "Boeing 737": {
         "rows": range(1, 31),
-        "seats": ['A', 'B', 'C', 'D', 'E', 'F'],
+        "seats": ["A", "B", "C", "D", "E", "F"],
         "default_type": Seat.SeatType.ECONOMY,
     },
     "Airbus A320": {
         "rows": range(1, 26),
-        "seats": ['A', 'B', 'C', 'D', 'E', 'F'],
+        "seats": ["A", "B", "C", "D", "E", "F"],
         "default_type": Seat.SeatType.ECONOMY,
     },
 }
@@ -30,9 +30,7 @@ class Command(BaseCommand):
         for type_name, config in SEAT_BLUEPRINTS.items():
 
             # 2. Find or create an Aircraft Type
-            plane_type, created = AirplaneType.objects.get_or_create(
-                name=type_name
-            )
+            plane_type, created = AirplaneType.objects.get_or_create(name=type_name)
 
             if created:
                 self.stdout.write(f"Created AirplaneType: {type_name}")
@@ -49,7 +47,7 @@ class Command(BaseCommand):
                         airplane_type=plane_type,
                         row=row_num,
                         seat=seat_char,
-                        defaults={'seat_type': config["default_type"]}
+                        defaults={"seat_type": config["default_type"]},
                     )
 
                     if seat_created:
@@ -63,9 +61,7 @@ class Command(BaseCommand):
                     )
                 )
             else:
-                self.stdout.write(
-                    f"  -> All seats for {type_name} already exist."
-                )
+                self.stdout.write(f"  -> All seats for {type_name} already exist.")
 
         self.stdout.write(
             self.style.SUCCESS(
